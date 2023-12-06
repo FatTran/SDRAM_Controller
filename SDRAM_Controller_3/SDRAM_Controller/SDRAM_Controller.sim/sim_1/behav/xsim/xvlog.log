@@ -1,0 +1,4 @@
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/SDRAM_Controller_3/SDRAM_Controller/SDRAM_Controller.srcs/sources_1/new/sdr_ctrl.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module sdr_ctrl
+INFO: [VRFC 10-2263] Analyzing Verilog file "D:/SDRAM_Controller_3/SDRAM_Controller/SDRAM_Controller.srcs/sim_1/new/sdr_ctrl_tb.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module sdr_ctrl_tb
