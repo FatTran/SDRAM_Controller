@@ -41,13 +41,14 @@ module sdr_ctrl(
     parameter i_ready = 4'b0100;
 
     parameter c_idle = 4'b0000;
-    parameter c_rdata = 4'b0001;
-    parameter c_wdata = 4'b0010;
-    parameter c_ACTIVE = 4'b0011;
+    parameter c_ACTIVE = 4'b0001;
+    parameter c_WRITEA = 4'b0010;
+    parameter c_wdata = 4'b0011;
     parameter c_READA = 4'b0100;
-    parameter c_WRITEA = 4'b0101;
-    parameter c_AR = 4'b0110;
-    parameter c_cl = 4'b0111;
+    parameter c_cl = 4'b0101;
+    parameter c_rdata = 4'b0110;
+    parameter c_AR = 4'b0111;
+   
     //defining clock cycle
     parameter read_cycle = 4;
     parameter write_cycle = 4;
@@ -56,7 +57,7 @@ module sdr_ctrl(
     parameter MRS_cycle = 2;
     parameter cas_latency = 3;
     
-      
+      //burst length = 4
     `define read_done clkCNT == read_cycle - 1
     `define write_done clkCNT == write_cycle
     `define refresh_done clkCNT == refresh_cycle
@@ -72,14 +73,18 @@ module sdr_ctrl(
         end
         else begin
             case(iState)
-                i_NOP: if(sys_START) iState <= i_PRE;
+                i_NOP: 
+                    if(sys_START) iState <= i_PRE;
+                    else iState <= i_NOP;
                 i_PRE: 
-                if(`precharge_done) iState <= i_AR;
-                else iState <= i_PRE;
-                i_AR: if(`refresh_done) iState <= i_MRS;
-                else iState <= i_AR;
-                i_MRS: if(`MRS_done) iState <= i_ready;
-                else iState <= i_MRS;
+                    if(`precharge_done) iState <= i_AR;
+                    else iState <= i_PRE;
+                i_AR: 
+                    if(`refresh_done) iState <= i_MRS;
+                    else iState <= i_AR;
+                i_MRS: 
+                    if(`MRS_done) iState <= i_ready;
+                    else iState <= i_MRS;
                 i_ready: iState <= i_ready;
                 default: iState <= i_NOP;
             endcase
@@ -133,7 +138,7 @@ module sdr_ctrl(
                 if(sys_REF_REQ && sys_INIT_DONE) sys_CYC_END <= 1;
                 else if(!sys_ADSn && sys_INIT_DONE) sys_CYC_END <= 0;
                 else sys_CYC_END <= 1;
-            c_ACTIVE, c_READA, c_WRITEA:
+            c_ACTIVE, c_READA, c_WRITEA, c_cl:
                 sys_CYC_END <= 0;
             c_rdata: 
                 if(`read_done) sys_CYC_END <= 1;
@@ -218,7 +223,9 @@ module sdr_ctrl(
                     c_cl:
                         if(`cas_latency_done) reset_CLK <= 1;
                         else reset_CLK <= 0;
+                    default: reset_CLK <= 1;
                 endcase
+             default: reset_CLK <= 0;
         endcase
     end
 endmodule

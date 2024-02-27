@@ -50,6 +50,16 @@ module sdr_top(
     wire [3:0] clkCNT;
 
     assign sdr_DQM = 0;
+    
+    sdr_data U3 (
+    .sys_CLK(sys_CLK),
+    .sys_RESET(sys_RESET),
+    .sys_D(sys_D),
+    .sys_D_VALID(sys_D_VALID),
+    .cState(cState),
+    .clkCNT(clkCNT),
+    .sdr_DQ(sdr_DQ)
+    );
 
     sdr_ctrl U1 (
     .sys_CLK(sys_CLK),
@@ -81,13 +91,5 @@ module sdr_top(
     .sdr_A(sdr_A)
     );
 
-    sdr_data U3 (
-    .sys_CLK(sys_CLK),
-    .sys_RESET(sys_RESET),
-    .sys_D(sys_D),
-    .sys_D_VALID(sys_D_VALID),
-    .cState(cState),
-    .clkCNT(clkCNT),
-    .sdr_DQ(sdr_DQ)
-    );
+    
 endmodule

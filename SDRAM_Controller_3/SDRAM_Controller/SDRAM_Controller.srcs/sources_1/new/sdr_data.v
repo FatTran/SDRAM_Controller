@@ -36,13 +36,13 @@ module sdr_data(
     parameter i_ready = 4'b0100;
 
     parameter c_idle = 4'b0000;
-    parameter c_rdata = 4'b0001;
-    parameter c_wdata = 4'b0010;
-    parameter c_ACTIVE = 4'b0011;
+    parameter c_ACTIVE = 4'b0001;
+    parameter c_WRITEA = 4'b0010;
+    parameter c_wdata = 4'b0011;
     parameter c_READA = 4'b0100;
-    parameter c_WRITEA = 4'b0101;
-    parameter c_AR = 4'b0110;
-    parameter c_cl = 4'b0111;
+    parameter c_cl = 4'b0101;
+    parameter c_rdata = 4'b0110;
+    parameter c_AR = 4'b0111;
     //defining clock cycle
     parameter read_cycle = 4;
     parameter write_cycle = 4;
@@ -73,10 +73,11 @@ module sdr_data(
     
     //Read cycle datapath
     assign sys_D = (enableSysD) ? regSdrDQ : 16'hzzzz;
-    assign cnt0_sdrDQ = (cState == c_rdata) && (clkCNT == 0) ? sdr_DQ : regSdrDQ[3:0];
-    assign cnt1_sdrDQ = (cState == c_rdata) && (clkCNT == 1) ? sdr_DQ : regSdrDQ[7:4];
-    assign cnt2_sdrDQ = (cState == c_rdata) && (clkCNT == 2) ? sdr_DQ : regSdrDQ[11:8];
-    assign cnt3_sdrDQ = (cState == c_rdata) && (clkCNT == 3) ? sdr_DQ : regSdrDQ[15:12];
+    
+    assign cnt0_sdrDQ = ((cState == c_rdata) && (clkCNT == 0)) ? sdr_DQ : regSdrDQ[3:0];
+    assign cnt1_sdrDQ = ((cState == c_rdata) && (clkCNT == 1)) ? sdr_DQ : regSdrDQ[7:4];
+    assign cnt2_sdrDQ = ((cState == c_rdata) && (clkCNT == 2)) ? sdr_DQ : regSdrDQ[11:8];
+    assign cnt3_sdrDQ = ((cState == c_rdata) && (clkCNT == 3)) ? sdr_DQ : regSdrDQ[15:12];
 
     always @(posedge sys_CLK or posedge sys_RESET) begin
         if(sys_RESET) begin
@@ -98,7 +99,7 @@ module sdr_data(
     reg [3:0] regSysDWrite;
     reg enableSdrDQ;
 
-    assign sdr_DQ = (enableSdrDQ) ? regSysDWrite : 16'hzzzz;
+    assign sdr_DQ = (enableSdrDQ) ? regSysDWrite : 4'bzzzz;
 
     always @(posedge sys_CLK or posedge sys_RESET) begin
         if(sys_RESET)
@@ -109,19 +110,20 @@ module sdr_data(
 
     always @(posedge sys_CLK or posedge sys_RESET) begin
         if(sys_RESET)
-            regSysDWrite <= 16'h0000;
-        else if(cState == c_WRITEA)
+            regSysDWrite <= 4'b0000;
+        else if((cState == c_wdata) && (clkCNT == 0))
             regSysDWrite <= regSysD[3:0];
-        else if((cState == c_WRITEA) && (clkCNT == 1))
+        else if((cState == c_wdata) && (clkCNT == 1))
             regSysDWrite <= regSysD[7:4];
-        else if((cState == c_WRITEA) && (clkCNT == 2))
+        else if((cState == c_wdata) && (clkCNT == 2))
             regSysDWrite <= regSysD[11:8];
-        else regSysDWrite <= regSysD[15:12];
+        else if((cState == c_wdata) && (clkCNT == 3))
+            regSysDWrite <= regSysD[15:12];
     end
     always @(posedge sys_CLK or posedge sys_RESET) begin
         if(sys_RESET)
             enableSdrDQ <= 0;
-        else if(cState == c_wdata)
+        else if((cState == c_wdata) && (clkCNT == 0))
             enableSdrDQ <= 1;
         else if ((cState == c_wdata) && (clkCNT == write_cycle))
             enableSdrDQ <= 0;

@@ -61,7 +61,7 @@ module sdr_ctrl_tb();
 
     initial begin
         forever begin
-            #50 sys_R_Wn = ~sys_R_Wn;
+            #200 sys_R_Wn = ~sys_R_Wn;
         end
     end
 
