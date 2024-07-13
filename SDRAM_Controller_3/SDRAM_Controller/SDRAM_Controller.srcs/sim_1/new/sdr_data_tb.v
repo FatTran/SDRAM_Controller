@@ -28,21 +28,12 @@ module sdr_data_tb();
     reg [3:0] clkCNT;
     wire [3:0] sdr_DQ;
     wire sys_D_VALID;
-        parameter c_idle = 4'b0000;
-        parameter c_ACTIVE = 4'b0001;
-        parameter c_WRITEA = 4'b0010;
-        parameter c_wdata = 4'b0011;
-        parameter c_READA = 4'b0100;
-        parameter c_cl = 4'b0101;
-        parameter c_rdata = 4'b0110;
-        parameter c_AR = 4'b0111;
-
-        parameter read_cycle = 4;
-        parameter write_cycle = 4;
-        parameter refresh_cycle = 2;
-        parameter precharge_cycle = 2;
-        parameter MRS_cycle = 2;
-        parameter cas_latency = 3;
+    
+    reg enable_R_Wn;
+    reg [3 : 0] sdr_DQ_tb;
+    reg [15 : 0] sys_D_tb;
+    
+    `include "sdr_par.vh"
     sdr_data uut(
         .sys_CLK(sys_CLK),
         .sys_RESET(sys_RESET),
@@ -53,20 +44,28 @@ module sdr_data_tb();
         .sys_D_VALID(sys_D_VALID)
     );
     
-    assign sdr_DQ = 4'b0100;
     initial begin
+        enable_R_Wn = 0;
         sys_CLK = 0;
         sys_RESET = 0;
         cState = c_idle;
         clkCNT = 0;
+        sdr_DQ_tb = 4'b0100;
+        sys_D_tb = 16'h1234;
     end
-
     initial begin
         forever begin
             #10 sys_CLK = ~sys_CLK;
+ 
         end
     end
-    
+    initial begin
+        forever begin
+            #(500 + tCK * (NUM_CLK_READ))  enable_R_Wn = ~enable_R_Wn;
+        end
+    end
+    assign sdr_DQ = (enable_R_Wn) ? sdr_DQ_tb : 4'bzzzz;
+    assign sys_D = (enable_R_Wn) ? 16'hzzzz : sys_D_tb;
 //    initial begin
 //       if(cState == c_rdata) begin
 //        sys_D = 0;
@@ -77,40 +76,69 @@ module sdr_data_tb();
 //        sdr_DQ = 0;
 //       end
 //    end
-
     always @(posedge sys_CLK) begin
-            if(cState == c_AR) cState <= c_idle;
             case(cState)
                     c_idle: begin
                         clkCNT <= 0;
-                        cState <= cState + 1;
+                        cState <= c_ACTIVE;
                     end
-                    c_AR:
-                        if(`refresh_done) begin 
+                    c_ACTIVE: begin
                         clkCNT <= 0;
-                        cState <= cState + 1;
+                        if(enable_R_Wn) 
+                            cState <= (NUM_CLK_tRCD == 0) ? c_tRCD : c_READA; 
+                        else cState <= (NUM_CLK_tRCD == 0) ? c_tRCD : c_WRITEA;
+                    end
+                    c_tRCD: begin
+                        if(`endof_tRCD) begin
+                            clkCNT <= 0;
+                            cState <= (enable_R_Wn == 0) ? c_WRITEA : c_READA; 
+                        end
+                        else clkCNT <= 0;
+                    end
+                    c_READA: begin
+                        clkCNT <= 0;
+                        cState <= c_cl;
+                    end
+                    c_WRITEA: begin
+                        clkCNT <= 0;
+                        cState <= c_wdata;
+                    end
+                    c_AR: begin
+                        clkCNT <= 0;
+                        cState <= (NUM_CLK_tRFC == 0) ? c_idle : c_tRFC;
+                    end
+                    c_tRFC:
+                        if(`endof_tRFC) begin
+                            clkCNT <= 0;
+                            cState <= c_idle;
                         end
                         else clkCNT <= clkCNT + 1;
                     c_rdata:
-                        if(`read_done) begin 
+                        if(`endof_READ_burst) begin 
                         clkCNT <= 0;
-                        cState <= cState + 1;
+                        cState <= c_idle;
                         end
                         else clkCNT <= clkCNT + 1;
                     c_wdata:
-                        if(`write_done) begin 
-                        clkCNT <= 0;
-                        cState <= cState + 1;
+                        if(`endof_WRITE_burst) begin 
+                            clkCNT <= 0;
+                            cState <= c_tDAL;
+                        end
+                        else clkCNT <= clkCNT + 1;
+                    c_tDAL:
+                        if(`endof_tDAL) begin
+                            clkCNT <= 0;
+                            cState <= c_idle;
                         end
                         else clkCNT <= clkCNT + 1;
                     c_cl:
-                        if(`cas_latency_done) begin 
+                        if(`endof_CAS_latency) begin 
                         clkCNT <= 0;
                         cState <= cState + 1;
                         end
                         else clkCNT <= clkCNT + 1;
                     default: 
-                        cState <= cState + 1;
+                        cState <= c_idle;
                 endcase
         end  
 endmodule

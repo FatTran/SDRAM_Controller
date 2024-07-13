@@ -24,7 +24,7 @@ module sdr_ctrl_tb();
     reg sys_REF_REQ;
     reg sys_CLK;
     reg sys_RESET;
-    reg sys_START;
+    reg sys_DLY_100us;
     reg sys_R_Wn;
     reg sys_ADSn;
     wire sys_INIT_DONE;
@@ -33,10 +33,11 @@ module sdr_ctrl_tb();
     wire [3:0] iState;
     wire [3:0] cState;
     wire [3:0] clkCNT;
+    `include "sdr_par.vh"
     sdr_ctrl uut(   .sys_REF_REQ(sys_REF_REQ),
                     .sys_CLK(sys_CLK),
                     .sys_RESET(sys_RESET),
-                    .sys_START(sys_START),
+                    .sys_DLY_100us(sys_DLY_100us),
                     .sys_R_Wn(sys_R_Wn),
                     .sys_ADSn(sys_ADSn),
                     .sys_INIT_DONE(sys_INIT_DONE),
@@ -45,39 +46,67 @@ module sdr_ctrl_tb();
                     .iState(iState),
                     .cState(cState),
                     .clkCNT(clkCNT)                 );    
+    task Read;
+        begin
+        @(negedge sys_CLK);
+        sys_RESET = 0;
+        sys_REF_REQ = 0;
+        sys_R_Wn = 1;
+        sys_ADSn = 0;
+        #tCK;
+        sys_ADSn = 1;
+        #tCK;
+//        $stop;
+        end
+    endtask
+    task Write;
+        begin
+        @(posedge sys_CYC_END);
+        @(negedge sys_CLK);
+        sys_RESET = 0;
+        sys_REF_REQ = 0;
+        sys_R_Wn = 0;
+        sys_ADSn = 0;
+        #tCK;
+        sys_ADSn = 1;
+        #tCK;
+        end
+    endtask
+    task Refresh;
+        begin
+        @(posedge sys_CYC_END);
+        @(negedge sys_CLK);
+        sys_RESET = 0;
+        sys_REF_REQ = 1;
+        sys_R_Wn = 1;
+        sys_ADSn = 0;
+        #tCK;
+        sys_ADSn = 1;
+        #tCK; 
+        end
+    endtask
     initial begin
         sys_REF_REQ  = 0;
         sys_CLK      = 0;
         sys_RESET    = 0;
-        sys_START    = 1;
+        sys_DLY_100us = 0;
         sys_R_Wn     = 0;
-        sys_ADSn     = 0;
+        sys_ADSn     = 1;
+        #101;
+        sys_DLY_100us = 1'b1;
+        @(posedge sys_INIT_DONE);
+        Read();
+        Write();
+        Refresh();
+        //$stop;
     end
     initial begin
         forever begin
-            #10 sys_CLK = ~sys_CLK;
+            #(tCK/2) sys_CLK = ~sys_CLK;
         end
     end
 
-    initial begin
-        forever begin
-            #200 sys_R_Wn = ~sys_R_Wn;
-        end
-    end
 
-    initial begin
-        forever begin
-            #30 sys_ADSn = ~sys_ADSn;
-        end
-    end
-
-    initial begin
-        #150 sys_START = 0;
-    end
-    initial begin
-        #460 sys_REF_REQ = 1;
-        #50 sys_REF_REQ = 0;
-    end
 
     
 endmodule

@@ -24,7 +24,7 @@ module sdr_ctrl(
     input sys_REF_REQ,
     input sys_CLK,
     input sys_RESET,
-    input sys_START,
+    input sys_DLY_100us,
     input sys_R_Wn,
     input sys_ADSn,
     output reg sys_INIT_DONE,
@@ -34,37 +34,7 @@ module sdr_ctrl(
     output reg [3:0] cState,
     output reg [3:0] clkCNT
     ); 
-    parameter i_NOP = 4'b0000;
-    parameter i_PRE = 4'b0001;
-    parameter i_AR  = 4'b0010;
-    parameter i_MRS = 4'b0011;
-    parameter i_ready = 4'b0100;
-
-    parameter c_idle = 4'b0000;
-    parameter c_ACTIVE = 4'b0001;
-    parameter c_WRITEA = 4'b0010;
-    parameter c_wdata = 4'b0011;
-    parameter c_READA = 4'b0100;
-    parameter c_cl = 4'b0101;
-    parameter c_rdata = 4'b0110;
-    parameter c_AR = 4'b0111;
-   
-    //defining clock cycle
-    parameter read_cycle = 4;
-    parameter write_cycle = 4;
-    parameter refresh_cycle = 2;
-    parameter precharge_cycle = 2;
-    parameter MRS_cycle = 2;
-    parameter cas_latency = 3;
-    
-      //burst length = 4
-    `define read_done clkCNT == read_cycle - 1
-    `define write_done clkCNT == write_cycle
-    `define refresh_done clkCNT == refresh_cycle
-    `define precharge_done clkCNT == precharge_cycle
-    `define MRS_done clkCNT == MRS_cycle
-    `define cas_latency_done clkCNT == cas_latency
-
+    `include "sdr_par.vh"
     reg reset_CLK;
     //INIT_FSM
     always @(posedge sys_CLK or posedge sys_RESET) begin
@@ -74,19 +44,27 @@ module sdr_ctrl(
         else begin
             case(iState)
                 i_NOP: 
-                    if(sys_START) iState <= i_PRE;
-                    else iState <= i_NOP;
+                    if(sys_DLY_100us) iState <= i_PRE;
                 i_PRE: 
-                    if(`precharge_done) iState <= i_AR;
-                    else iState <= i_PRE;
-                i_AR: 
-                    if(`refresh_done) iState <= i_MRS;
-                    else iState <= i_AR;
+                    iState <= (NUM_CLK_tRP == 0) ? i_AR1 : i_tRP;
+                i_tRP:
+                    if(`endof_tRP) iState <= i_AR1;
+                i_AR1: 
+                    iState <= (NUM_CLK_tRFC == 0) ? i_AR2 : i_tRFC1;
+                i_tRFC1:
+                    if(`endof_tRFC) iState <= i_AR2;
+                i_AR2:
+                    iState <= (NUM_CLK_tRFC == 0) ? i_MRS : i_tRFC2;
+                i_tRFC2:
+                    if(`endof_tRFC) iState <= i_MRS;
                 i_MRS: 
-                    if(`MRS_done) iState <= i_ready;
-                    else iState <= i_MRS;
-                i_ready: iState <= i_ready;
-                default: iState <= i_NOP;
+                    iState <= (NUM_CLK_tMRD == 0) ? i_ready : i_tMRD;
+                i_tMRD:
+                    if(`endof_tMRD) iState <= i_ready;
+                i_ready: 
+                    iState <= i_ready;
+                default: 
+                    iState <= i_NOP;
             endcase
         end
     end
@@ -102,24 +80,28 @@ module sdr_ctrl(
                     if(sys_REF_REQ && sys_INIT_DONE) cState <= c_AR;
                     else if(!sys_ADSn && sys_INIT_DONE) cState <= c_ACTIVE;
                 c_ACTIVE:
-                    if(sys_R_Wn) cState <= c_READA;
-                    else cState <= c_WRITEA;
+                    if(NUM_CLK_tRCD == 0 ) 
+                        cState <= (sys_R_Wn) ? c_READA : c_WRITEA;
+                    else cState <= c_tRCD;
+                c_tRCD:
+                    if(`endof_tRCD) 
+                        cState <= (sys_R_Wn) ? c_READA : c_WRITEA;
                 c_READA:
                     cState <= c_cl;
+                c_rdata:
+                    if(`endof_READ_burst) cState <= c_idle;
+                c_cl:
+                    if(`endof_CAS_latency) cState <= c_rdata;
                 c_WRITEA:
                     cState <= c_wdata;
-                c_rdata:
-                    if(`read_done) cState <= c_idle;
-                    else cState <= c_rdata;
                 c_wdata:
-                    if(`write_done) cState <= c_idle;
-                    else cState <= c_wdata;
+                    if(`endof_WRITE_burst) cState <= c_tDAL;
+                c_tDAL:
+                    if(`endof_tDAL) cState <= c_idle;
                 c_AR:
-                    if(`refresh_done) cState <= c_idle;
-                    else cState <= c_AR;
-                c_cl:
-                    if(`cas_latency_done) cState <= c_rdata;
-                    else cState <= c_cl;
+                    cState <= (NUM_CLK_tRFC == 0) ? c_idle : c_tRFC;
+                c_tRFC:
+                    if(`endof_tRFC) cState <= c_idle;
                 default:
                     cState <= c_idle;
             endcase
@@ -138,14 +120,12 @@ module sdr_ctrl(
                 if(sys_REF_REQ && sys_INIT_DONE) sys_CYC_END <= 1;
                 else if(!sys_ADSn && sys_INIT_DONE) sys_CYC_END <= 0;
                 else sys_CYC_END <= 1;
-            c_ACTIVE, c_READA, c_WRITEA, c_cl:
+            c_ACTIVE, c_READA, c_WRITEA, c_cl, c_wdata, c_tRCD:
                 sys_CYC_END <= 0;
             c_rdata: 
-                if(`read_done) sys_CYC_END <= 1;
-                else sys_CYC_END <= 0;
-            c_wdata:
-                if(`write_done) sys_CYC_END <= 1;
-                else sys_CYC_END <= 0;
+                sys_CYC_END <= (`endof_READ_burst) ? 1 : 0;
+            c_tDAL:
+                sys_CYC_END <= (`endof_tDAL) ? 1 : 0;
             default: 
                 sys_CYC_END <= 1;
            endcase 
@@ -165,7 +145,7 @@ module sdr_ctrl(
                     if(sys_REF_REQ && sys_INIT_DONE) sys_REF_ACK <= 1;
                     else sys_REF_ACK <= 0;
                 c_AR:
-                    if(`refresh_done) sys_REF_ACK <= 0;
+                    if(NUM_CLK_tRFC == 0) sys_REF_ACK <= 0;
                     else sys_REF_ACK <= 1;
                 default:   
                     sys_REF_ACK <= 0;
@@ -197,35 +177,40 @@ module sdr_ctrl(
     always @(iState or cState or clkCNT) begin
         case(iState)
             i_NOP: 
-                reset_CLK = 1;
+                reset_CLK <= 1;
             i_PRE:
-                if(`precharge_done) reset_CLK = 1;
-                else reset_CLK = 0;
-            i_AR:
-                if(`refresh_done) reset_CLK = 1;
-                else reset_CLK = 0;
-            i_MRS:
-                if(`MRS_done) reset_CLK = 1;
-                else reset_CLK = 0;
+                reset_CLK <= (NUM_CLK_tRP == 0) ? 1 : 0;
+            i_AR1, i_AR2:
+                reset_CLK <= (NUM_CLK_tRFC == 0) ? 1 : 0;
+            i_tRP:
+                reset_CLK <= (`endof_tRP) ? 1 : 0;
+            i_tRFC1, i_tRFC2:
+                reset_CLK <= (`endof_tRFC) ? 1 : 0;
+            i_tMRD:
+                reset_CLK <= (`endof_tMRD) ? 1 : 0;
             i_ready:
                 case(cState)
-                    c_idle: 
+                    c_idle:
                         reset_CLK <= 1;
-                    c_AR:
-                        if(`refresh_done) reset_CLK <= 1;
-                        else reset_CLK <= 0;
-                    c_rdata:
-                        if(`read_done) reset_CLK <= 1;
-                        else reset_CLK <= 0;
-                    c_wdata:
-                        if(`write_done) reset_CLK <= 1;
-                        else reset_CLK <= 0;
+                    c_ACTIVE:
+                        reset_CLK <= (NUM_CLK_tRCD == 0) ? 1 : 0;
                     c_cl:
-                        if(`cas_latency_done) reset_CLK <= 1;
-                        else reset_CLK <= 0;
-                    default: reset_CLK <= 1;
+                        reset_CLK <= (`endof_CAS_latency) ? 1 : 0;
+                    c_rdata:
+                        reset_CLK <= (clkCNT == NUM_CLK_READ) ? 1 : 0;
+                    c_wdata:
+                        reset_CLK <= (`endof_WRITE_burst) ? 1 : 0;
+//                    c_tDAL:
+//                        reset_CLK <= (`endof_tDAL) ? 1 : 0;
+                    c_tRCD:
+                        reset_CLK <= (`endof_tRCD) ? 1 : 0;
+                    c_tRFC:
+                        reset_CLK <= (`endof_tRFC) ? 1 : 0;                    
+                    default: 
+                        reset_CLK <= 0;
                 endcase
-             default: reset_CLK <= 0;
+             default: 
+             reset_CLK <= 0;
         endcase
     end
 endmodule

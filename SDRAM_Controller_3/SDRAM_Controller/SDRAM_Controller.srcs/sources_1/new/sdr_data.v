@@ -29,36 +29,8 @@ module sdr_data(
     inout [3:0] sdr_DQ,
     output sys_D_VALID
     );
-    parameter i_NOP = 4'b0000;
-    parameter i_PRE = 4'b0001;
-    parameter i_AR  = 4'b0010;
-    parameter i_MRS = 4'b0011;
-    parameter i_ready = 4'b0100;
+    `include "sdr_par.vh"
 
-    parameter c_idle = 4'b0000;
-    parameter c_ACTIVE = 4'b0001;
-    parameter c_WRITEA = 4'b0010;
-    parameter c_wdata = 4'b0011;
-    parameter c_READA = 4'b0100;
-    parameter c_cl = 4'b0101;
-    parameter c_rdata = 4'b0110;
-    parameter c_AR = 4'b0111;
-    //defining clock cycle
-    parameter read_cycle = 4;
-    parameter write_cycle = 4;
-    parameter refresh_cycle = 2;
-    parameter precharge_cycle = 2;
-    parameter MRS_cycle = 2;
-    parameter cas_latency = 3;
-    
-      
-    `define read_done clkCNT == read_cycle - 1
-    `define write_done clkCNT == write_cycle
-    `define refresh_done clkCNT == refresh_cycle
-    `define precharge_done clkCNT == precharge_cycle
-    `define MRS_done clkCNT == MRS_cycle
-    `define cas_latency_done clkCNT == cas_latency
-    
     //Read cycle
     
     reg [15: 0] regSdrDQ;
@@ -90,7 +62,7 @@ module sdr_data(
     always @(posedge sys_CLK or posedge sys_RESET) begin
         if(sys_RESET) 
             enableSysD <= 0;
-        else if ((cState == c_rdata) && (clkCNT == read_cycle - 1))
+        else if ((cState == c_rdata) && (clkCNT == NUM_CLK_READ - 1))
             enableSysD <= 1;
         else enableSysD <= 0;
     end
@@ -110,8 +82,8 @@ module sdr_data(
 
     always @(posedge sys_CLK or posedge sys_RESET) begin
         if(sys_RESET)
-            regSysDWrite <= 4'b0000;
-        else if((cState == c_wdata) && (clkCNT == 0))
+            regSysDWrite <= 16'h0000;
+        else if((cState == c_WRITEA))
             regSysDWrite <= regSysD[3:0];
         else if((cState == c_wdata) && (clkCNT == 1))
             regSysDWrite <= regSysD[7:4];
@@ -123,9 +95,9 @@ module sdr_data(
     always @(posedge sys_CLK or posedge sys_RESET) begin
         if(sys_RESET)
             enableSdrDQ <= 0;
-        else if((cState == c_wdata) && (clkCNT == 0))
+        else if((cState == c_WRITEA) && (clkCNT == 0))
             enableSdrDQ <= 1;
-        else if ((cState == c_wdata) && (clkCNT == write_cycle))
+        else if ((cState == c_wdata) && (clkCNT == NUM_CLK_WRITE))
             enableSdrDQ <= 0;
     end
 endmodule

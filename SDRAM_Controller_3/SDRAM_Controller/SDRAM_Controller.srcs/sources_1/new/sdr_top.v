@@ -23,7 +23,7 @@
 module sdr_top(
     input sys_R_Wn,
     input sys_ADSn,
-    input sys_START,
+    input sys_DLY_100us,
     input sys_CLK,
     input sys_RESET,
     input sys_REF_REQ,
@@ -66,7 +66,7 @@ module sdr_top(
     .sys_RESET(sys_RESET),
     .sys_R_Wn(sys_R_Wn),
     .sys_ADSn(sys_ADSn),
-    .sys_START(sys_START),
+    .sys_DLY_100us(sys_DLY_100us),
     .sys_REF_REQ(sys_REF_REQ),
     .sys_REF_ACK(sys_REF_ACK),
     .sys_CYC_END(sys_CYC_END),

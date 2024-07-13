@@ -1,76 +1,91 @@
 `timescale 1ns / 1ps
 
-module sdr_top_tb();
-    reg sys_R_Wn;
-    reg sys_ADSn;
-    reg sys_START;
-    reg sys_CLK;
-    reg sys_RESET;
-    reg sys_REF_REQ;
-    reg [22:0] sys_A;
-    wire sys_REF_ACK;
-    wire [15:0] sys_D;
-    wire sys_D_VALID;
-    wire sys_CYC_END;
-    wire sys_INIT_DONE;
-    wire [3:0] sdr_DQ;
-    wire [11:0] sdr_A;
-    wire [1:0] sdr_BA;
-    wire sdr_CKE;
-    wire sdr_CSn;
-    wire sdr_RASn;
-    wire sdr_CASn;
-    wire sdr_WEn;
-    wire sdr_DQM;
-    sdr_top uut(
-                .sys_R_Wn(sys_R_Wn),
-                .sys_ADSn(sys_ADSn),
-                .sys_START(sys_START),
-                .sys_CLK(sys_CLK),
-                .sys_RESET(sys_RESET),
-                .sys_REF_REQ(sys_REF_REQ),
-                .sys_A(sys_A),
-                .sys_REF_ACK(sys_REF_ACK),
-                .sys_D(sys_D),
-                .sys_D_VALID(sys_D_VALID),
-                .sys_CYC_END(sys_CYC_END),
-                .sys_INIT_DONE(sys_INIT_DONE),
-                .sdr_DQ(sdr_DQ),
-                .sdr_A(sdr_A),
-                .sdr_BA(sdr_BA),
-                .sdr_CKE(sdr_CKE),
-                .sdr_CSn(sdr_CSn),
-                .sdr_RASn(sdr_RASn),
-                .sdr_CASn(sdr_CASn),
-                .sdr_WEn(sdr_WEn),
-                .sdr_DQM(sdr_DQM)
-    );
-    assign sys_D = (sys_R_Wn) ? 16'hzzzz: 16'h0fce;
-    assign sdr_DQ = (sys_R_Wn) ? 4'b0110 : 4'bzzzz;
-    initial begin
-        sys_R_Wn = 1;
-        sys_ADSn = 0;
-        sys_START = 1;
-        sys_CLK = 0;
-        sys_RESET = 0;
-        sys_REF_REQ = 0;
-        sys_A = 11;
-    end
+module sdr_tb;
 
-    initial begin
-        forever begin
-            #10 sys_CLK = ~sys_CLK; 
-        end
-    end
+wire sys_R_Wn;      // read/write#
+wire sys_ADSn;      // address strobe
+wire sys_DLY_100us; // sdr power and clock stable for 100 us
+wire sys_CLK;       // sdr clock
+wire sys_RESET;     // reset signal
+wire sys_REF_REQ;   // sdr auto-refresh request
+wire sys_REF_ACK;   // sdr auto-refresh acknowledge
+wire [22:0] sys_A;  // address bus
+wire [15:0] sys_D;  // data bus
+wire sys_D_VALID;   // data valid
+wire sys_CYC_END;   // end of current cycle
+wire sys_INIT_DONE; // initialization completed, ready for normal operation
 
-//    initial begin
-//        #100 sys_REF_REQ = 1;
-//        #20 sys_REF_REQ = 0;
-//    end
-    
-   initial begin
-       forever begin
-       #500 sys_R_Wn = ~sys_R_Wn;
-       end
-  end
+wire [3:0] sdr_DQ;  // sdr data
+wire [11:0] sdr_A;  // sdr address
+wire [1:0] sdr_BA;  // sdr bank address
+wire sdr_CKE;       // sdr clock enable
+wire sdr_CSn;       // sdr chip select
+wire sdr_RASn;      // sdr row address
+wire sdr_CASn;      // sdr column select
+wire sdr_WEn;       // sdr write enable
+wire sdr_DQM;       // sdr write data mask
+
+//---------------------------------------------------------------------
+// modules
+
+sdr_top UUT(
+  .sys_R_Wn(sys_R_Wn),      // read/write#
+  .sys_ADSn(sys_ADSn),      // address strobe
+  .sys_DLY_100us(sys_DLY_100us), // sdr power and clock stable for 100 us
+  .sys_CLK(sys_CLK),       // sdr clock
+  .sys_RESET(sys_RESET),     // reset signal
+  .sys_REF_REQ(sys_REF_REQ),   // sdr auto-refresh request
+  .sys_REF_ACK(sys_REF_ACK),   // sdr auto-refresh acknowledge
+  .sys_A(sys_A),         // address bus
+  .sys_D(sys_D),         // data bus
+  .sys_D_VALID(sys_D_VALID),   // data valid
+  .sys_CYC_END(sys_CYC_END),   // end of current cycle
+  .sys_INIT_DONE(sys_INIT_DONE), // initialization completed, ready for normal operation
+
+  .sdr_DQ(sdr_DQ),        // sdr data
+  .sdr_A(sdr_A),         // sdr address
+  .sdr_BA(sdr_BA),        // sdr bank address
+  .sdr_CKE(sdr_CKE),       // sdr clock enable
+  .sdr_CSn(sdr_CSn),       // sdr chip select
+  .sdr_RASn(sdr_RASn),      // sdr row address
+  .sdr_CASn(sdr_CASn),      // sdr column select
+  .sdr_WEn(sdr_WEn),       // sdr write enable
+  .sdr_DQM(sdr_DQM)        // sdr write data mask
+);
+
+system STIMULUS(
+  .sys_CLK(sys_CLK),
+  .sys_RESET(sys_RESET),
+  .sys_A(sys_A),
+  .sys_ADSn(sys_ADSn),
+  .sys_R_Wn(sys_R_Wn),
+  .sys_D(sys_D),
+  .sys_DLY_100us(sys_DLY_100us),
+  .sys_REF_REQ(sys_REF_REQ),
+  .sys_CYC_END(sys_CYC_END),
+  .sys_INIT_DONE(sys_INIT_DONE)
+);
+
+// Module "mt48lc32m4a2" can be downloaded from Micro's web site.
+
+//mt48lc32m4a2 SDR_SDRAM(
+sdr SDR_SDRAM(
+  sdr_DQ,
+  sdr_A,
+  sdr_BA,
+  sys_CLK,
+  sdr_CKE,
+  sdr_CSn,
+  sdr_RASn,
+  sdr_CASn,
+  sdr_WEn,
+  sdr_DQM
+);
 endmodule
+
+
+
+
+
+
+
